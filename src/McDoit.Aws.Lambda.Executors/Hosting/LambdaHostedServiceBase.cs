@@ -66,7 +66,8 @@ public abstract class LambdaHostedServiceBase : IHostedService, IDisposable // B
 
 	public Task StopAsync(CancellationToken cancellationToken)
 	{
-		throw new NotImplementedException();
+		_logger.LogInformation("{HostedServiceType} shutdown requested.", GetType().Name);
+		return Task.CompletedTask;
 	}
 
 	public void Dispose()
