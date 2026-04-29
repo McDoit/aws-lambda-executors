@@ -1,0 +1,25 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/samples/">
+    <Project Path="samples/CoreEventLambdaSample/CoreEventLambdaSample.csproj" />
+    <Project Path="samples/CoreRequestResponseLambdaSample/CoreRequestResponseLambdaSample.csproj" />
+    <Project Path="samples/Samples.AppHost/Samples.AppHost.csproj" />
+    <Project Path="samples/Samples.ServiceDefaults/Samples.ServiceDefaults.csproj" />
+    <Project Path="samples/SnsRawAwareParallelSample/SnsRawAwareParallelSample.csproj" />
+    <Project Path="samples/SnsTypedHandlerSample/SnsTypedHandlerSample.csproj" />
+    <Project Path="samples/SqsRawAwareParallelSample/SqsRawAwareParallelSample.csproj" />
+    <Project Path="samples/SqsTypedHandlerSample/SqsTypedHandlerSample.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/McDoit.Aws.Lambda.Executors.Sns/McDoit.Aws.Lambda.Executors.Sns.csproj" />
+    <Project Path="src/McDoit.Aws.Lambda.Executors.Sqs/McDoit.Aws.Lambda.Executors.Sqs.csproj" />
+    <Project Path="src/McDoit.Aws.Lambda.Executors/McDoit.Aws.Lambda.Executors.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/McDoit.Aws.Lambda.Executors.Tests/McDoit.Aws.Lambda.Executors.Tests.csproj" />
+  </Folder>
+</Solution>

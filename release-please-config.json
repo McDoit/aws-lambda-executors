@@ -1,0 +1,14 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "extra-files": [
+        {
+          "type": "generic-xml",
+          "path": "src/Directory.Build.props",
+          "xpath": "/Project/PropertyGroup/Version"
+        }
+      ]
+    }
+  }
+}
