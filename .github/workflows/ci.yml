@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Restore
+        run: dotnet restore ./McDoit.Aws.Lambda.Executors.slnx
+
+      - name: Build
+        run: dotnet build ./McDoit.Aws.Lambda.Executors.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test ./McDoit.Aws.Lambda.Executors.slnx --configuration Release --no-build --verbosity minimal
