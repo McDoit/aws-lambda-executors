@@ -48,7 +48,7 @@ jobs:
           fi
 
       - name: Checkout tagged commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ inputs.release_tag }}
 
