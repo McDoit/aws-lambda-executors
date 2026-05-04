@@ -16,36 +16,115 @@ Utilities for building AWS Lambda handlers with `Microsoft.Extensions.Hosting`, 
 | `McDoit.Aws.Lambda.Executors.Sns` | SNS-specific registration and executor helpers. |
 | `McDoit.Aws.Lambda.Executors.Sqs` | SQS-specific registration and executor helpers. |
 
+## NuGet
+
+Primary package ID:
+
+- `McDoit.Aws.Lambda.Executors`
+
+Install:
+
+```powershell
+dotnet add package McDoit.Aws.Lambda.Executors
+```
+
+If you need SNS/SQS integrations, install:
+
+```powershell
+dotnet add package McDoit.Aws.Lambda.Executors.Sns
+dotnet add package McDoit.Aws.Lambda.Executors.Sqs
+```
+
+## Usage
+
+All examples use `Host.CreateApplicationBuilder(args)` and register one Lambda mode per service collection.
+
+### Core event lambda
+
+```csharp
+using Amazon.Lambda.Core;
+using McDoit.Aws.Lambda.Executors;
+using McDoit.Aws.Lambda.Executors.Extensions;
+using Microsoft.Extensions.Hosting;
+
+var builder = Host.CreateApplicationBuilder(args);
+builder.AddEventLambda<OrderCreatedEvent, OrderCreatedEventExecutor>();
+
+public sealed class OrderCreatedEventExecutor : IEventExecutor<OrderCreatedEvent>
+{
+    public Task ExecuteAsync(OrderCreatedEvent? input, ILambdaContext context, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+}
+
+public sealed record OrderCreatedEvent(string OrderId);
+```
+
+### Core request/response lambda
+
+```csharp
+using Amazon.Lambda.Core;
+using McDoit.Aws.Lambda.Executors;
+using McDoit.Aws.Lambda.Executors.Extensions;
+using Microsoft.Extensions.Hosting;
+
+var builder = Host.CreateApplicationBuilder(args);
+builder.AddRequestResponseLambda<PingRequest, PingResponse, PingExecutor>();
+
+public sealed class PingExecutor : IRequestResponseExecutor<PingRequest, PingResponse>
+{
+    public Task<PingResponse> ExecuteAsync(PingRequest? input, ILambdaContext context, CancellationToken cancellationToken)
+        => Task.FromResult(new PingResponse($"Pong: {input?.Message ?? "empty"}"));
+}
+
+public sealed record PingRequest(string Message);
+public sealed record PingResponse(string Message);
+```
+
+### SNS typed processor
+
+```csharp
+using Amazon.Lambda.Core;
+using Amazon.Lambda.SNSEvents;
+using McDoit.Aws.Lambda.Executors.Sns;
+using McDoit.Aws.Lambda.Executors.Sns.Extensions;
+using Microsoft.Extensions.Hosting;
+
+var builder = Host.CreateApplicationBuilder(args);
+builder.AddSnsLambda<OrderShippedNotification, OrderShippedNotificationProcessor>();
+
+public sealed class OrderShippedNotificationProcessor : ISnsNotificationProcessor<OrderShippedNotification>
+{
+    public Task ProcessAsync(OrderShippedNotification? notification, SNSEvent.SNSRecord record, ILambdaContext context, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+}
+
+public sealed record OrderShippedNotification(string OrderId);
+```
+
+### SQS typed processor
+
+```csharp
+using Amazon.Lambda.Core;
+using Amazon.Lambda.SQSEvents;
+using McDoit.Aws.Lambda.Executors.Sqs;
+using McDoit.Aws.Lambda.Executors.Sqs.Extensions;
+using Microsoft.Extensions.Hosting;
+
+var builder = Host.CreateApplicationBuilder(args);
+builder.AddSqsLambda<OrderCreatedMessage, OrderCreatedMessageProcessor>();
+
+public sealed class OrderCreatedMessageProcessor : ISqsMessageProcessor<OrderCreatedMessage>
+{
+    public Task ProcessAsync(OrderCreatedMessage message, SQSEvent.SQSMessage rawMessage, ILambdaContext context, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+}
+
+public sealed record OrderCreatedMessage(string OrderId);
+```
+
 ## Local development
 
 ```powershell
+dotnet build .\McDoit.Aws.Lambda.Executors.slnx
 dotnet test .\McDoit.Aws.Lambda.Executors.slnx
 ```
-
-## Release workflow
-
-1. Open a pull request with a Conventional Commit title (for squash merge history), for example:
-   - `feat: add xyz`
-   - `fix: correct abc`
-   - `docs: update usage notes`
-2. CI runs restore, build, and tests on each PR.
-3. Merging into `main` runs Release Please, which updates/creates a release PR from commit history.
-4. Merging the release PR creates the GitHub release and tag.
-5. When a release is created, `release-please.yml` calls the reusable `publish-nuget.yml` workflow with the created tag.
-6. `publish-nuget.yml` packs all three packages and pushes `.nupkg` + `.snupkg` files to NuGet when `dry_run` is `false`.
-7. Maintainers can run `publish-nuget.yml` manually via `workflow_dispatch` (for example with `dry_run: true` for packaging-only validation).
-
-## Required GitHub repository setup
-
-1. Add repository secret `NUGET_API_KEY` with a NuGet.org API key allowed to publish these packages.
-2. No separate Release Please PAT is required; `release-please.yml` uses `GITHUB_TOKEN` and triggers publish through `workflow_call`.
-3. Enable branch protection for `main` and require these checks:
-   - `CI / build-and-test`
-   - `Semantic PR Title / validate`
-   - `CodeQL / analyze`
-4. Prefer squash merges so release commits follow PR title Conventional Commit format.
-
-## Recommended extras
-
-- Configure NuGet Trusted Publishing to remove long-lived API key usage when ready.
-- Keep Dependabot PRs enabled for both NuGet and GitHub Actions updates.
