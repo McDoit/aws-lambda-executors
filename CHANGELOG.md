@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/McDoit/aws-lambda-executors/compare/v0.1.0...v0.1.1) (2026-05-04)
+
+
+### Bug Fixes
+
+* Updated readmes ([#16](https://github.com/McDoit/aws-lambda-executors/issues/16)) ([894c2e2](https://github.com/McDoit/aws-lambda-executors/commit/894c2e2e035a568e59350eabd1dc01c4530fbc8e))
+
 ## [0.1.0](https://github.com/McDoit/aws-lambda-executors/compare/v0.0.1...v0.1.0) (2026-05-04)
 
 
