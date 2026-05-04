@@ -1,6 +1,5 @@
 using Amazon.Lambda.Core;
 using Amazon.Lambda.SNSEvents;
-using McDoit.Aws.Lambda.Executors.Sns.Handlers;
 using McDoit.Aws.Lambda.Executors.Sns.Options;
 
 namespace McDoit.Aws.Lambda.Executors.Sns;
@@ -12,9 +11,8 @@ public class ParallelSnsEventExecutor<TNotification> : SnsEventExecutor<TNotific
     public ParallelSnsEventExecutor(
         INotificationSerializer notificationSerializer,
         ParallelSnsExecutionOptions executionOptions,
-        ISnsNotificationHandler<TNotification>? snsNotificationHandler = null,
-        INotificationHandler<TNotification>? notificationHandler = null)
-        : base(notificationSerializer, snsNotificationHandler, notificationHandler)
+        ISnsNotificationProcessor<TNotification>? notificationProcessor = null)
+        : base(notificationSerializer, notificationProcessor)
     {
         _executionOptions = executionOptions ?? throw new ArgumentNullException(nameof(executionOptions));
 
@@ -30,7 +28,7 @@ public class ParallelSnsEventExecutor<TNotification> : SnsEventExecutor<TNotific
     public override Task ExecuteAsync(SNSEvent? input, ILambdaContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
-        EnsureCompatibleHandlerRegistered();
+        EnsureNotificationProcessorRegistered();
 
         if (input?.Records is null || input.Records.Count == 0)
         {

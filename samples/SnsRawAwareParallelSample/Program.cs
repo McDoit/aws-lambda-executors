@@ -1,7 +1,7 @@
 using Amazon.Lambda.Core;
 using Amazon.Lambda.SNSEvents;
+using McDoit.Aws.Lambda.Executors.Sns;
 using McDoit.Aws.Lambda.Executors.Sns.Extensions;
-using McDoit.Aws.Lambda.Executors.Sns.Handlers;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Samples.ServiceDefaults;
@@ -10,7 +10,7 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.AddServiceDefaults();
 builder
-    .AddSnsLambdaWithRawHandler<OrderShippedNotification, RawAwareOrderShippedNotificationHandler>()
+    .AddSnsLambda<OrderShippedNotification, RawAwareOrderShippedNotificationProcessor>()
     .WithParallelExecution(maxDegreeOfParallelism: 4);
 
 using var host = builder.Build();
@@ -23,10 +23,10 @@ if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AWS_LAMBDA_RU
 
 Console.WriteLine("SNS raw-aware sample configured. Set AWS_LAMBDA_RUNTIME_API to run in Lambda.");
 
-public sealed class RawAwareOrderShippedNotificationHandler(ILogger<RawAwareOrderShippedNotificationHandler> logger)
-    : ISnsNotificationHandler<OrderShippedNotification>
+public sealed class RawAwareOrderShippedNotificationProcessor(ILogger<RawAwareOrderShippedNotificationProcessor> logger)
+    : ISnsNotificationProcessor<OrderShippedNotification>
 {
-    public Task HandleAsync(OrderShippedNotification? notification, SNSEvent.SNSRecord record, ILambdaContext context, CancellationToken cancellationToken)
+    public Task ProcessAsync(OrderShippedNotification? notification, SNSEvent.SNSRecord record, ILambdaContext context, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         logger.LogInformation(

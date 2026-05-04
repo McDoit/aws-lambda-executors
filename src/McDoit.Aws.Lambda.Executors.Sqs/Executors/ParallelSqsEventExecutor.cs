@@ -1,6 +1,5 @@
 using Amazon.Lambda.Core;
 using Amazon.Lambda.SQSEvents;
-using McDoit.Aws.Lambda.Executors.Sqs.Handlers;
 using McDoit.Aws.Lambda.Executors.Sqs.Options;
 
 namespace McDoit.Aws.Lambda.Executors.Sqs;
@@ -9,19 +8,16 @@ public class ParallelSqsEventExecutor<TMessage> : IEventExecutor<SQSEvent>
 {
     private readonly IMessageSerializer _messageSerializer;
     private readonly ParallelSqsExecutionOptions _executionOptions;
-    private readonly IMessageHandler<TMessage>? _messageHandler;
-    private readonly ISqsMessageHandler<TMessage>? _sqsMessageHandler;
+    private readonly ISqsMessageProcessor<TMessage>? _messageProcessor;
 
     public ParallelSqsEventExecutor(
         IMessageSerializer messageSerializer,
         ParallelSqsExecutionOptions? executionOptions = null,
-        IMessageHandler<TMessage>? messageHandler = null,
-        ISqsMessageHandler<TMessage>? sqsMessageHandler = null)
+        ISqsMessageProcessor<TMessage>? messageProcessor = null)
     {
         _messageSerializer = messageSerializer ?? throw new ArgumentNullException(nameof(messageSerializer));
         _executionOptions = executionOptions ?? new ParallelSqsExecutionOptions();
-        _messageHandler = messageHandler;
-        _sqsMessageHandler = sqsMessageHandler;
+        _messageProcessor = messageProcessor;
 
         if (_executionOptions.MaxDegreeOfParallelism <= 0)
         {
@@ -41,7 +37,7 @@ public class ParallelSqsEventExecutor<TMessage> : IEventExecutor<SQSEvent>
             return;
         }
 
-        EnsureAnyHandlerRegistered();
+        EnsureMessageProcessorRegistered();
 
         var parallelOptions = new ParallelOptions
         {
@@ -66,35 +62,28 @@ public class ParallelSqsEventExecutor<TMessage> : IEventExecutor<SQSEvent>
 
         var message = _messageSerializer.Deserialize<TMessage>(rawMessage.Body);
 
-        // Deterministic policy: when both are registered, prefer the typed+raw handler.
-        if (_sqsMessageHandler is not null)
+        if (_messageProcessor is not null)
         {
-            await _sqsMessageHandler.HandleAsync(message, rawMessage, context, cancellationToken).ConfigureAwait(false);
+            await _messageProcessor.ProcessAsync(message, rawMessage, context, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        if (_messageHandler is not null)
-        {
-            await _messageHandler.HandleAsync(message, context, cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
-        throw CreateNoHandlerException();
+        throw CreateNoMessageProcessorException();
     }
 
-    private void EnsureAnyHandlerRegistered()
+    private void EnsureMessageProcessorRegistered()
     {
-        if (_sqsMessageHandler is null && _messageHandler is null)
+        if (_messageProcessor is null)
         {
-            throw CreateNoHandlerException();
+            throw CreateNoMessageProcessorException();
         }
     }
 
-    private static InvalidOperationException CreateNoHandlerException()
+    private static InvalidOperationException CreateNoMessageProcessorException()
     {
         var messageType = typeof(TMessage).FullName ?? typeof(TMessage).Name;
         return new InvalidOperationException(
-            $"No SQS message handler is registered for message type '{messageType}'. Register either {nameof(ISqsMessageHandler<TMessage>)} or {nameof(IMessageHandler<TMessage>)}.");
+            $"No SQS message processor is registered for message type '{messageType}'. Register {nameof(ISqsMessageProcessor<TMessage>)}.");
     }
 
 }

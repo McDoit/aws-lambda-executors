@@ -2,7 +2,6 @@ using System.Reflection;
 using Amazon.Lambda.Core;
 using Amazon.Lambda.Serialization.SystemTextJson;
 using McDoit.Aws.Lambda.Executors.Extensions;
-using McDoit.Aws.Lambda.Executors.Handlers;
 using McDoit.Aws.Lambda.Executors.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -78,14 +77,13 @@ public sealed class RequestResponseLambdaHostedServiceTests
         var input = new CoreRequestInput("ping");
         var expectedResponse = new CoreResponseOutput("pong");
         var context = Mock.Of<ILambdaContext>();
-        var handler = new Mock<IRequestResponseHandler<CoreRequestInput, CoreResponseOutput>>();
-        handler
-            .Setup(x => x.HandleAsync(It.Is<CoreRequestInput?>(value => value == input), context, It.IsAny<CancellationToken>()))
+        var executor = new Mock<IRequestResponseExecutor<CoreRequestInput, CoreResponseOutput>>();
+        executor
+            .Setup(x => x.ExecuteAsync(It.Is<CoreRequestInput?>(value => value == input), context, It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedResponse);
 
         var services = new ServiceCollection();
-        services.AddScoped(_ => handler.Object);
-
+        services.AddScoped(_ => executor.Object);
         using var provider = services.BuildServiceProvider();
         var service = new RequestResponseLambdaHostedService<CoreRequestInput, CoreResponseOutput>(
             provider.GetRequiredService<IServiceScopeFactory>(),
@@ -95,8 +93,8 @@ public sealed class RequestResponseLambdaHostedServiceTests
         var response = await InvokeExecuteInvocationAsync(service, input, context);
 
         Assert.Equal(expectedResponse, response);
-        handler.Verify(
-            x => x.HandleAsync(It.Is<CoreRequestInput?>(value => value == input), context, It.IsAny<CancellationToken>()),
+        executor.Verify(
+            x => x.ExecuteAsync(It.Is<CoreRequestInput?>(value => value == input), context, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -114,7 +112,7 @@ public sealed class RequestResponseLambdaHostedServiceTests
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             InvokeExecuteInvocationAsync(service, new CoreRequestInput("missing"), Mock.Of<ILambdaContext>()));
 
-        Assert.Contains(typeof(IRequestResponseHandler<CoreRequestInput, CoreResponseOutput>).FullName!, exception.Message);
+        Assert.Contains(typeof(IRequestResponseExecutor<CoreRequestInput, CoreResponseOutput>).FullName!, exception.Message);
     }
 
     private static Task<CoreResponseOutput> InvokeExecuteInvocationAsync(
@@ -162,13 +160,12 @@ public sealed class CoreServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
 
-        services.AddRequestResponseLambda<CoreRequestInput, CoreResponseOutput, CoreRequestResponseHandler>(
+        services.AddRequestResponseLambda<CoreRequestInput, CoreResponseOutput, CoreRequestResponseExecutor>(
             ServiceLifetime.Singleton);
 
-        var requestResponseHandler = Assert.Single(
-            services.Where(x => x.ServiceType == typeof(IRequestResponseHandler<CoreRequestInput, CoreResponseOutput>)));
-        Assert.Equal(typeof(CoreRequestResponseHandler), requestResponseHandler.ImplementationType);
-        Assert.Equal(ServiceLifetime.Singleton, requestResponseHandler.Lifetime);
+        var requestResponseExecutor = Assert.Single(services, x => x.ServiceType == typeof(IRequestResponseExecutor<CoreRequestInput, CoreResponseOutput>));
+        Assert.Equal(typeof(CoreRequestResponseExecutor), requestResponseExecutor.ImplementationType);
+        Assert.Equal(ServiceLifetime.Singleton, requestResponseExecutor.Lifetime);
 
         Assert.Contains(
             services,
@@ -188,9 +185,9 @@ public sealed class CoreServiceCollectionExtensionsTests
         public Task ExecuteAsync(CoreEventInput? input, ILambdaContext context, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class CoreRequestResponseHandler : IRequestResponseHandler<CoreRequestInput, CoreResponseOutput>
+    private sealed class CoreRequestResponseExecutor : IRequestResponseExecutor<CoreRequestInput, CoreResponseOutput>
     {
-        public Task<CoreResponseOutput> HandleAsync(CoreRequestInput? input, ILambdaContext context, CancellationToken cancellationToken)
+        public Task<CoreResponseOutput> ExecuteAsync(CoreRequestInput? input, ILambdaContext context, CancellationToken cancellationToken)
             => Task.FromResult(new CoreResponseOutput(input?.Value ?? string.Empty));
     }
 }

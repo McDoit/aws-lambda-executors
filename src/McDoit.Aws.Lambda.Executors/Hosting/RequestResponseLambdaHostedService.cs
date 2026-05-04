@@ -1,6 +1,5 @@
 using Amazon.Lambda.Core;
 using Amazon.Lambda.RuntimeSupport;
-using McDoit.Aws.Lambda.Executors.Handlers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -36,15 +35,15 @@ public sealed class RequestResponseLambdaHostedService<TInput, TOutput> : Lambda
         using var scope = CreateScope();
         using var invocationCancellationTokenSource = _invocationCancellationTokenFactory.Create(context, _stoppingToken);
 
-        var handler = scope.ServiceProvider.GetService(typeof(IRequestResponseHandler<TInput, TOutput>))
-            as IRequestResponseHandler<TInput, TOutput>;
+        var executor = scope.ServiceProvider.GetService(typeof(IRequestResponseExecutor<TInput, TOutput>))
+            as IRequestResponseExecutor<TInput, TOutput>;
 
-        if (handler is null)
+        if (executor is null)
         {
             throw new InvalidOperationException(
-                $"No handler was registered for '{typeof(IRequestResponseHandler<TInput, TOutput>).FullName}'.");
+                $"No executor was registered for '{typeof(IRequestResponseExecutor<TInput, TOutput>).FullName}'.");
         }
 
-        return await handler.HandleAsync(input, context, invocationCancellationTokenSource.Token).ConfigureAwait(false);
+        return await executor.ExecuteAsync(input, context, invocationCancellationTokenSource.Token).ConfigureAwait(false);
     }
 }

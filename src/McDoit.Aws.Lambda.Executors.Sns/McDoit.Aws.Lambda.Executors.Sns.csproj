@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageId>McDoit.Aws.Lambda.Executors.Sns</PackageId>
     <Description>SNS-specific AWS Lambda executors and registration helpers for typed and raw-aware notification handling.</Description>
@@ -10,6 +10,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\McDoit.Aws.Lambda.Executors\McDoit.Aws.Lambda.Executors.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Handlers\" />
   </ItemGroup>
 </Project>
 

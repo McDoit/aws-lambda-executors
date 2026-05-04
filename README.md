@@ -2,6 +2,12 @@
 
 Utilities for building AWS Lambda handlers with `Microsoft.Extensions.Hosting`, including base executors plus SNS and SQS integrations.
 
+## Terminology
+
+- **Handler**: Lambda runtime entrypoint.
+- **Executor**: invocation/event-envelope orchestration.
+- **Processor**: record-level SNS/SQS processing implementation.
+
 ## Packages
 
 | Package | Purpose |

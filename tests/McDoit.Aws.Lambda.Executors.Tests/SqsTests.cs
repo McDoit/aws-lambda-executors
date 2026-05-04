@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Amazon.Lambda.Core;
 using Amazon.Lambda.SQSEvents;
-using McDoit.Aws.Lambda.Executors.Sqs.Handlers;
 using McDoit.Aws.Lambda.Executors.Hosting;
 using McDoit.Aws.Lambda.Executors.Sqs.Extensions;
 using McDoit.Aws.Lambda.Executors.Sqs;
@@ -46,65 +45,33 @@ public sealed class DefaultJsonMessageSerializerTests
 public sealed class SqsEventExecutorTests
 {
     [Fact]
-    public async Task ExecuteAsync_PrefersRawAwareHandler_WhenBothHandlersAreRegistered()
+    public async Task ExecuteAsync_InvokesRegisteredMessageProcessor()
     {
         var serializer = new DefaultJsonMessageSerializer();
         var context = Mock.Of<ILambdaContext>();
-        var typedHandler = new Mock<IMessageHandler<SqsOrderMessage>>();
-        typedHandler
-            .Setup(x => x.HandleAsync(It.IsAny<SqsOrderMessage>(), It.IsAny<ILambdaContext>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        var rawAwareHandler = new Mock<ISqsMessageHandler<SqsOrderMessage>>();
-        rawAwareHandler
-            .Setup(x => x.HandleAsync(
+        var messageProcessor = new Mock<ISqsMessageProcessor<SqsOrderMessage>>();
+        messageProcessor
+            .Setup(x => x.ProcessAsync(
                 It.Is<SqsOrderMessage>(message => message.OrderId == "A-42"),
                 It.Is<SQSEvent.SQSMessage>(raw => raw.Body == "{\"orderId\":\"A-42\"}"),
                 context,
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var executor = new SqsEventExecutor<SqsOrderMessage>(serializer, typedHandler.Object, rawAwareHandler.Object);
+        var executor = new SqsEventExecutor<SqsOrderMessage>(serializer, messageProcessor.Object);
 
         await executor.ExecuteAsync(SqsTestEventFactory.Create("{\"orderId\":\"A-42\"}"), context, CancellationToken.None);
 
-        rawAwareHandler.Verify(x => x.HandleAsync(
+        messageProcessor.Verify(x => x.ProcessAsync(
                 It.Is<SqsOrderMessage>(message => message.OrderId == "A-42"),
                 It.Is<SQSEvent.SQSMessage>(raw => raw.Body == "{\"orderId\":\"A-42\"}"),
                 context,
                 It.IsAny<CancellationToken>()),
             Times.Once);
-        typedHandler.Verify(
-            x => x.HandleAsync(It.IsAny<SqsOrderMessage>(), It.IsAny<ILambdaContext>(), It.IsAny<CancellationToken>()),
-            Times.Never);
     }
 
     [Fact]
-    public async Task ExecuteAsync_FallsBackToTypedHandler_WhenRawAwareHandlerIsMissing()
-    {
-        var serializer = new DefaultJsonMessageSerializer();
-        var context = Mock.Of<ILambdaContext>();
-        var typedHandler = new Mock<IMessageHandler<SqsOrderMessage>>();
-        typedHandler
-            .Setup(x => x.HandleAsync(
-                It.Is<SqsOrderMessage>(message => message.OrderId == "A-24"),
-                context,
-                It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        var executor = new SqsEventExecutor<SqsOrderMessage>(serializer, typedHandler.Object);
-
-        await executor.ExecuteAsync(SqsTestEventFactory.Create("{\"orderId\":\"A-24\"}"), context, CancellationToken.None);
-
-        typedHandler.Verify(x => x.HandleAsync(
-                It.Is<SqsOrderMessage>(message => message.OrderId == "A-24"),
-                context,
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_ThrowsInvalidOperationException_WhenNoCompatibleHandlerIsRegistered()
+    public async Task ExecuteAsync_ThrowsInvalidOperationException_WhenNoMessageProcessorIsRegistered()
     {
         var executor = new SqsEventExecutor<SqsOrderMessage>(new DefaultJsonMessageSerializer());
 
@@ -124,16 +91,16 @@ public sealed class ParallelSqsEventExecutorTests
         var context = Mock.Of<ILambdaContext>();
         var invocationCount = 0;
 
-        var typedHandler = new Mock<IMessageHandler<SqsOrderMessage>>();
-        typedHandler
-            .Setup(x => x.HandleAsync(It.IsAny<SqsOrderMessage>(), It.IsAny<ILambdaContext>(), It.IsAny<CancellationToken>()))
+        var messageProcessor = new Mock<ISqsMessageProcessor<SqsOrderMessage>>();
+        messageProcessor
+            .Setup(x => x.ProcessAsync(It.IsAny<SqsOrderMessage>(), It.IsAny<SQSEvent.SQSMessage>(), It.IsAny<ILambdaContext>(), It.IsAny<CancellationToken>()))
             .Callback(() => Interlocked.Increment(ref invocationCount))
             .Returns(Task.CompletedTask);
 
         var executor = new ParallelSqsEventExecutor<SqsOrderMessage>(
             serializer,
             new ParallelSqsExecutionOptions { MaxDegreeOfParallelism = 2 },
-            typedHandler.Object);
+            messageProcessor.Object);
 
         await executor.ExecuteAsync(
             SqsTestEventFactory.Create(
@@ -164,10 +131,9 @@ public sealed class SqsServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
 
-        var registration = services.AddSqsLambda<SqsOrderMessage, SqsTypedExecutor>();
+        var registration = services.AddSqsLambda<SqsOrderMessage, SqsMessageProcessor>();
 
-        var defaultEventExecutor = Assert.Single(
-            services.Where(x => x.ServiceType == typeof(IEventExecutor<SQSEvent>)));
+        var defaultEventExecutor = Assert.Single(services, x => x.ServiceType == typeof(IEventExecutor<SQSEvent>));
         Assert.Equal(typeof(SqsEventExecutor<SqsOrderMessage>), defaultEventExecutor.ImplementationType);
 
         Assert.Contains(
@@ -184,13 +150,13 @@ public sealed class SqsServiceCollectionExtensionsTests
 
         Assert.Contains(
             services,
-            descriptor => descriptor.ServiceType == typeof(IMessageHandler<SqsOrderMessage>)
+            descriptor => descriptor.ServiceType == typeof(ISqsMessageProcessor<SqsOrderMessage>)
+                          && descriptor.ImplementationType == typeof(SqsMessageProcessor)
                           && descriptor.Lifetime == ServiceLifetime.Scoped);
 
         registration.WithParallelExecution(4);
 
-        var parallelEventExecutor = Assert.Single(
-            services.Where(x => x.ServiceType == typeof(IEventExecutor<SQSEvent>)));
+        var parallelEventExecutor = Assert.Single(services, x => x.ServiceType == typeof(IEventExecutor<SQSEvent>));
         Assert.Equal(typeof(ParallelSqsEventExecutor<SqsOrderMessage>), parallelEventExecutor.ImplementationType);
 
         using var provider = services.BuildServiceProvider();
@@ -202,16 +168,17 @@ public sealed class SqsServiceCollectionExtensionsTests
     public void WithParallelExecution_Throws_WhenDegreeOfParallelismIsNotGreaterThanOne()
     {
         var services = new ServiceCollection();
-        var registration = services.AddSqsLambda<SqsOrderMessage, SqsTypedExecutor>();
+        var registration = services.AddSqsLambda<SqsOrderMessage, SqsMessageProcessor>();
 
         var exception = Assert.Throws<ArgumentOutOfRangeException>(() => registration.WithParallelExecution(1));
 
         Assert.Equal("maxDegreeOfParallelism", exception.ParamName);
     }
 
-    private sealed class SqsTypedExecutor : IMessageHandler<SqsOrderMessage>
+    private sealed class SqsMessageProcessor : ISqsMessageProcessor<SqsOrderMessage>
     {
-        public Task HandleAsync(SqsOrderMessage message, ILambdaContext context, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ProcessAsync(SqsOrderMessage message, SQSEvent.SQSMessage rawMessage, ILambdaContext context, CancellationToken cancellationToken)
+            => Task.CompletedTask;
     }
 }
 

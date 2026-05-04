@@ -16,9 +16,9 @@
   <ItemGroup>
     <ProjectReference Include="..\CoreEventLambdaSample\CoreEventLambdaSample.csproj" IsAspireProjectResource="true" />
     <ProjectReference Include="..\CoreRequestResponseLambdaSample\CoreRequestResponseLambdaSample.csproj" IsAspireProjectResource="true" />
-    <ProjectReference Include="..\SqsTypedHandlerSample\SqsTypedHandlerSample.csproj" IsAspireProjectResource="true" />
+    <ProjectReference Include="..\SqsTypedProcessorSample\SqsTypedProcessorSample.csproj" IsAspireProjectResource="true" />
     <ProjectReference Include="..\SqsRawAwareParallelSample\SqsRawAwareParallelSample.csproj" IsAspireProjectResource="true" />
-    <ProjectReference Include="..\SnsTypedHandlerSample\SnsTypedHandlerSample.csproj" IsAspireProjectResource="true" />
+    <ProjectReference Include="..\SnsTypedProcessorSample\SnsTypedProcessorSample.csproj" IsAspireProjectResource="true" />
     <ProjectReference Include="..\SnsRawAwareParallelSample\SnsRawAwareParallelSample.csproj" IsAspireProjectResource="true" />
   </ItemGroup>
 </Project>
