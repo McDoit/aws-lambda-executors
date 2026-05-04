@@ -2,6 +2,12 @@
 
 This folder contains minimal, runnable .NET samples for each supported registration mode.
 
+## Terminology
+
+- **Handler**: Lambda runtime entrypoint.
+- **Executor**: invocation/event-envelope orchestration.
+- **Processor**: record-level SNS/SQS processing implementation.
+
 ## Included samples
 
 1. **CoreEventLambdaSample**  
@@ -25,7 +31,7 @@ From repository root:
 dotnet build .\McDoit.Aws.Lambda.Executors.slnx --framework net8.0
 ```
 
-Each sample uses `Host.CreateApplicationBuilder(args)` and local handler/processor model classes in `Program.cs`.
+Each sample uses `Host.CreateApplicationBuilder(args)` and local executor/processor model classes in `Program.cs`.
 
 ## Local run and debugging with Aspire
 
