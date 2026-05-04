@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Amazon.Lambda.Core;
 using Amazon.Lambda.SNSEvents;
-using McDoit.Aws.Lambda.Executors.Sns.Handlers;
 using McDoit.Aws.Lambda.Executors.Hosting;
 using McDoit.Aws.Lambda.Executors.Sns.Extensions;
 using McDoit.Aws.Lambda.Executors.Sns;
@@ -59,66 +58,34 @@ public sealed class DefaultJsonNotificationSerializerTests
 public sealed class SnsEventExecutorTests
 {
     [Fact]
-    public async Task ExecuteAsync_PrefersRawAwareHandler_WhenBothHandlersAreRegistered()
+    public async Task ExecuteAsync_InvokesRegisteredNotificationProcessor()
     {
         var serializer = new DefaultJsonNotificationSerializer();
         var context = Mock.Of<ILambdaContext>();
 
-        var typedHandler = new Mock<INotificationHandler<SnsOrderNotification>>();
-        typedHandler
-            .Setup(x => x.HandleAsync(It.IsAny<SnsOrderNotification?>(), It.IsAny<ILambdaContext>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        var rawAwareHandler = new Mock<ISnsNotificationHandler<SnsOrderNotification>>();
-        rawAwareHandler
-            .Setup(x => x.HandleAsync(
+        var notificationProcessor = new Mock<ISnsNotificationProcessor<SnsOrderNotification>>();
+        notificationProcessor
+            .Setup(x => x.ProcessAsync(
                 It.Is<SnsOrderNotification?>(notification => notification != null && notification.OrderId == "N-42"),
                 It.IsAny<SNSEvent.SNSRecord>(),
                 context,
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var executor = new SnsEventExecutor<SnsOrderNotification>(serializer, rawAwareHandler.Object, typedHandler.Object);
+        var executor = new SnsEventExecutor<SnsOrderNotification>(serializer, notificationProcessor.Object);
 
         await executor.ExecuteAsync(SnsTestEventFactory.Create("{\"orderId\":\"N-42\"}"), context, CancellationToken.None);
 
-        rawAwareHandler.Verify(x => x.HandleAsync(
+        notificationProcessor.Verify(x => x.ProcessAsync(
                 It.Is<SnsOrderNotification?>(notification => notification != null && notification.OrderId == "N-42"),
                 It.IsAny<SNSEvent.SNSRecord>(),
                 context,
                 It.IsAny<CancellationToken>()),
             Times.Once);
-        typedHandler.Verify(
-            x => x.HandleAsync(It.IsAny<SnsOrderNotification?>(), It.IsAny<ILambdaContext>(), It.IsAny<CancellationToken>()),
-            Times.Never);
     }
 
     [Fact]
-    public async Task ExecuteAsync_FallsBackToTypedHandler_WhenRawAwareHandlerIsMissing()
-    {
-        var serializer = new DefaultJsonNotificationSerializer();
-        var context = Mock.Of<ILambdaContext>();
-        var typedHandler = new Mock<INotificationHandler<SnsOrderNotification>>();
-        typedHandler
-            .Setup(x => x.HandleAsync(
-                It.Is<SnsOrderNotification?>(notification => notification != null && notification.OrderId == "N-24"),
-                context,
-                It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        var executor = new SnsEventExecutor<SnsOrderNotification>(serializer, notificationHandler: typedHandler.Object);
-
-        await executor.ExecuteAsync(SnsTestEventFactory.Create("{\"orderId\":\"N-24\"}"), context, CancellationToken.None);
-
-        typedHandler.Verify(x => x.HandleAsync(
-                It.Is<SnsOrderNotification?>(notification => notification != null && notification.OrderId == "N-24"),
-                context,
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_ThrowsInvalidOperationException_WhenNoCompatibleHandlerIsRegistered()
+    public async Task ExecuteAsync_ThrowsInvalidOperationException_WhenNoNotificationProcessorIsRegistered()
     {
         var executor = new SnsEventExecutor<SnsOrderNotification>(new DefaultJsonNotificationSerializer());
 
@@ -137,16 +104,16 @@ public sealed class ParallelSnsEventExecutorTests
         var serializer = new DefaultJsonNotificationSerializer();
         var context = Mock.Of<ILambdaContext>();
         var invocationCount = 0;
-        var typedHandler = new Mock<INotificationHandler<SnsOrderNotification>>();
-        typedHandler
-            .Setup(x => x.HandleAsync(It.IsAny<SnsOrderNotification?>(), It.IsAny<ILambdaContext>(), It.IsAny<CancellationToken>()))
+        var notificationProcessor = new Mock<ISnsNotificationProcessor<SnsOrderNotification>>();
+        notificationProcessor
+            .Setup(x => x.ProcessAsync(It.IsAny<SnsOrderNotification?>(), It.IsAny<SNSEvent.SNSRecord>(), It.IsAny<ILambdaContext>(), It.IsAny<CancellationToken>()))
             .Callback(() => Interlocked.Increment(ref invocationCount))
             .Returns(Task.CompletedTask);
 
         var executor = new ParallelSnsEventExecutor<SnsOrderNotification>(
             serializer,
             new ParallelSnsExecutionOptions { MaxDegreeOfParallelism = 3 },
-            notificationHandler: typedHandler.Object);
+            notificationProcessor: notificationProcessor.Object);
 
         await executor.ExecuteAsync(
             SnsTestEventFactory.Create(
@@ -163,13 +130,13 @@ public sealed class ParallelSnsEventExecutorTests
     public void Constructor_Throws_WhenMaxDegreeOfParallelismIsNotPositive()
     {
         var serializer = new DefaultJsonNotificationSerializer();
-        var typedHandler = Mock.Of<INotificationHandler<SnsOrderNotification>>();
+        var notificationProcessor = Mock.Of<ISnsNotificationProcessor<SnsOrderNotification>>();
 
         var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
             new ParallelSnsEventExecutor<SnsOrderNotification>(
                 serializer,
                 new ParallelSnsExecutionOptions { MaxDegreeOfParallelism = 0 },
-                notificationHandler: typedHandler));
+                notificationProcessor: notificationProcessor));
 
         Assert.Equal("MaxDegreeOfParallelism", exception.ParamName);
     }
@@ -178,11 +145,11 @@ public sealed class ParallelSnsEventExecutorTests
 public sealed class SnsServiceCollectionExtensionsTests
 {
     [Fact]
-    public void AddSnsLambda_RegistersExpectedServices_AndWithParallelExecutionSwitchesExecutorImplementation()
+    public void AddSnsLambda_RegistersExpectedServices_AndWithParallelExecutionSwitchesEventExecutorImplementation()
     {
         var services = new ServiceCollection();
 
-        var configurator = services.AddSnsLambda<SnsOrderNotification, SnsTypedExecutor>();
+        var builder = services.AddSnsLambda<SnsOrderNotification, SnsNotificationProcessor>();
 
         var defaultEventExecutor = Assert.Single(
             services.Where(x => x.ServiceType == typeof(IEventExecutor<SNSEvent>)));
@@ -202,11 +169,11 @@ public sealed class SnsServiceCollectionExtensionsTests
 
         Assert.Contains(
             services,
-            descriptor => descriptor.ServiceType == typeof(INotificationHandler<SnsOrderNotification>)
-                          && descriptor.ImplementationType == typeof(SnsTypedExecutor)
+            descriptor => descriptor.ServiceType == typeof(ISnsNotificationProcessor<SnsOrderNotification>)
+                          && descriptor.ImplementationType == typeof(SnsNotificationProcessor)
                           && descriptor.Lifetime == ServiceLifetime.Scoped);
 
-        configurator.WithParallelExecution(5);
+        builder.WithParallelExecution(5);
 
         var parallelEventExecutor = Assert.Single(
             services.Where(x => x.ServiceType == typeof(IEventExecutor<SNSEvent>)));
@@ -221,16 +188,17 @@ public sealed class SnsServiceCollectionExtensionsTests
     public void WithParallelExecution_Throws_WhenDegreeOfParallelismIsNotGreaterThanOne()
     {
         var services = new ServiceCollection();
-        var configurator = services.AddSnsLambda<SnsOrderNotification, SnsTypedExecutor>();
+        var builder = services.AddSnsLambda<SnsOrderNotification, SnsNotificationProcessor>();
 
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => configurator.WithParallelExecution(1));
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithParallelExecution(1));
 
         Assert.Equal("maxDegreeOfParallelism", exception.ParamName);
     }
 
-    private sealed class SnsTypedExecutor : INotificationHandler<SnsOrderNotification>
+    private sealed class SnsNotificationProcessor : ISnsNotificationProcessor<SnsOrderNotification>
     {
-        public Task HandleAsync(SnsOrderNotification? notification, ILambdaContext context, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ProcessAsync(SnsOrderNotification? notification, SNSEvent.SNSRecord record, ILambdaContext context, CancellationToken cancellationToken)
+            => Task.CompletedTask;
     }
 }
 

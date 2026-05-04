@@ -1,7 +1,6 @@
 using Amazon.Lambda.SQSEvents;
 using McDoit.Aws.Lambda.Executors.Extensions;
 using McDoit.Aws.Lambda.Executors.Hosting;
-using McDoit.Aws.Lambda.Executors.Sqs.Handlers;
 using McDoit.Aws.Lambda.Executors.Sqs.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -11,29 +10,20 @@ namespace McDoit.Aws.Lambda.Executors.Sqs.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    public static SqsLambdaRegistrationBuilder<TMessage> AddSqsLambda<TMessage, THandler>(
+    public static SqsLambdaRegistrationBuilder<TMessage> AddSqsLambda<TMessage, TProcessor>(
         this IServiceCollection services,
-		Action<SqsLambdaRegistrationBuilder<TMessage>>? configure = null,
-       bool rawAwareHandler = true)
-        where THandler : class, ISqsMessageHandler<TMessage>
-	{
+        Action<SqsLambdaRegistrationBuilder<TMessage>>? configure = null)
+        where TProcessor : class, ISqsMessageProcessor<TMessage>
+    {
         ArgumentNullException.ThrowIfNull(services);
 
-      if (!rawAwareHandler)
-		{
-			throw new ArgumentOutOfRangeException(
-               nameof(rawAwareHandler),
-                rawAwareHandler,
-                "rawAwareHandler must be true.");
-		}
-
-		return LambdaExecutorRegistrationGuard.RegisterExecutor(
+        return LambdaExecutorRegistrationGuard.RegisterExecutor(
             services,
-            "AddSqsLambda<TMessage, THandler>",
+            "AddSqsLambda<TMessage, TProcessor>",
             () =>
             {
                 RegisterCoreServices(services);
-                RegisterRawUserHandlers<TMessage, THandler>(services);
+                RegisterMessageProcessor<TMessage, TProcessor>(services);
                 ReplaceEventExecutor<TMessage, SqsEventExecutor<TMessage>>(services);
 
                 var builder = new SqsLambdaRegistrationBuilder<TMessage>(services);
@@ -42,29 +32,7 @@ public static class ServiceCollectionExtensions
             });
     }
 
- public static SqsLambdaRegistrationBuilder<TMessage> AddSqsLambda<TMessage, THandler>(
-		this IServiceCollection services,
-		Action<SqsLambdaRegistrationBuilder<TMessage>>? configure = null)
-     where THandler : class, IMessageHandler<TMessage>
-	{
-		ArgumentNullException.ThrowIfNull(services);
-
-		return LambdaExecutorRegistrationGuard.RegisterExecutor(
-			services,
-            "AddSqsLambda<TMessage, THandler>",
-			() =>
-			{
-				RegisterCoreServices(services);
-               RegisterUserHandlers<TMessage, THandler>(services);
-				ReplaceEventExecutor<TMessage, SqsEventExecutor<TMessage>>(services);
-
-				var builder = new SqsLambdaRegistrationBuilder<TMessage>(services);
-				configure?.Invoke(builder);
-				return builder;
-			});
-	}
-
-	private static void RegisterCoreServices(IServiceCollection services)
+    private static void RegisterCoreServices(IServiceCollection services)
     {
         services.TryAddSingleton<IMessageSerializer, DefaultJsonMessageSerializer>();
         services.AddOptions<LambdaInvocationCancellationOptions>();
@@ -72,29 +40,17 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, EventLambdaHostedService<SQSEvent>>());
     }
 
- private static void RegisterUserHandlers<TMessage, THandler>(
+    private static void RegisterMessageProcessor<TMessage, TProcessor>(
         IServiceCollection services)
-     where THandler : class, IMessageHandler<TMessage>
-	{
-        services.TryAddScoped<THandler>();
-        services.RemoveAll<IMessageHandler<TMessage>>();
-        services.RemoveAll<ISqsMessageHandler<TMessage>>();
+        where TProcessor : class, ISqsMessageProcessor<TMessage>
+    {
+        services.TryAddScoped<TProcessor>();
+        services.RemoveAll<ISqsMessageProcessor<TMessage>>();
 
-        services.AddScoped<IMessageHandler<TMessage>, THandler>();
-	}
+        services.AddScoped<ISqsMessageProcessor<TMessage>, TProcessor>();
+    }
 
-  private static void RegisterRawUserHandlers<TMessage, THandler>(
-		IServiceCollection services)
-      where THandler : class, ISqsMessageHandler<TMessage>
-	{
-     services.TryAddScoped<THandler>();
-        services.RemoveAll<IMessageHandler<TMessage>>();
-        services.RemoveAll<ISqsMessageHandler<TMessage>>();
-
-        services.AddScoped<ISqsMessageHandler<TMessage>, THandler>();		
-	}
-
-	internal static void ReplaceEventExecutor<TMessage, TEventExecutor>(IServiceCollection services)
+    internal static void ReplaceEventExecutor<TMessage, TEventExecutor>(IServiceCollection services)
         where TEventExecutor : class, IEventExecutor<SQSEvent>
     {
         services.RemoveAll<IEventExecutor<SQSEvent>>();

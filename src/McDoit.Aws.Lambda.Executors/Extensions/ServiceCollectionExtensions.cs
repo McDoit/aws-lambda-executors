@@ -1,6 +1,5 @@
 using Amazon.Lambda.Core;
 using Amazon.Lambda.Serialization.SystemTextJson;
-using McDoit.Aws.Lambda.Executors.Handlers;
 using McDoit.Aws.Lambda.Executors.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -26,26 +25,25 @@ public static class ServiceCollectionExtensions
                 RegisterExecutorMapping<IEventExecutor<TInput>, TExecutor>(services, executorLifetime);
                 RegisterDefaultSerializer(services);
                 services.AddHostedService<EventLambdaHostedService<TInput>>();
-				//services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, EventLambdaHostedService<TInput>>());
 
                 return services;
             });
     }
 
-    public static IServiceCollection AddRequestResponseLambda<TInput, TOutput, THandler>(
+    public static IServiceCollection AddRequestResponseLambda<TInput, TOutput, TExecutor>(
         this IServiceCollection services,
-        ServiceLifetime handlerLifetime = ServiceLifetime.Transient)
-        where THandler : class, IRequestResponseHandler<TInput, TOutput>
+        ServiceLifetime executorLifetime = ServiceLifetime.Transient)
+        where TExecutor : class, IRequestResponseExecutor<TInput, TOutput>
     {
         ArgumentNullException.ThrowIfNull(services);
-        EnsureValidLifetime(handlerLifetime);
+        EnsureValidLifetime(executorLifetime);
 
         return LambdaExecutorRegistrationGuard.RegisterExecutor(
             services,
-            "AddRequestResponseLambda<TInput, TOutput, THandler>",
+            "AddRequestResponseLambda<TInput, TOutput, TExecutor>",
             () =>
             {
-                RegisterExecutorMapping<IRequestResponseHandler<TInput, TOutput>, THandler>(services, handlerLifetime);
+                RegisterExecutorMapping<IRequestResponseExecutor<TInput, TOutput>, TExecutor>(services, executorLifetime);
                 RegisterDefaultSerializer(services);
                 services.TryAddEnumerable(
                     ServiceDescriptor.Singleton<IHostedService, RequestResponseLambdaHostedService<TInput, TOutput>>());

@@ -1,29 +1,25 @@
 using Amazon.Lambda.Core;
 using Amazon.Lambda.SNSEvents;
-using McDoit.Aws.Lambda.Executors.Sns.Handlers;
 
 namespace McDoit.Aws.Lambda.Executors.Sns;
 
 public class SnsEventExecutor<TNotification> : IEventExecutor<SNSEvent>
 {
     private readonly INotificationSerializer _notificationSerializer;
-    private readonly INotificationHandler<TNotification>? _notificationHandler;
-    private readonly ISnsNotificationHandler<TNotification>? _snsNotificationHandler;
+    private readonly ISnsNotificationProcessor<TNotification>? _notificationProcessor;
 
     public SnsEventExecutor(
         INotificationSerializer notificationSerializer,
-        ISnsNotificationHandler<TNotification>? snsNotificationHandler = null,
-        INotificationHandler<TNotification>? notificationHandler = null)
+        ISnsNotificationProcessor<TNotification>? notificationProcessor = null)
     {
         _notificationSerializer = notificationSerializer ?? throw new ArgumentNullException(nameof(notificationSerializer));
-        _snsNotificationHandler = snsNotificationHandler;
-        _notificationHandler = notificationHandler;
+        _notificationProcessor = notificationProcessor;
     }
 
     public virtual async Task ExecuteAsync(SNSEvent? input, ILambdaContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
-        EnsureCompatibleHandlerRegistered();
+        EnsureNotificationProcessorRegistered();
 
         if (input?.Records is null || input.Records.Count == 0)
         {
@@ -43,30 +39,25 @@ public class SnsEventExecutor<TNotification> : IEventExecutor<SNSEvent>
 
     protected Task DispatchAsync(TNotification? notification, SNSEvent.SNSRecord record, ILambdaContext context, CancellationToken cancellationToken)
     {
-        if (_snsNotificationHandler is not null)
+        if (_notificationProcessor is not null)
         {
-            return _snsNotificationHandler.HandleAsync(notification, record, context, cancellationToken);
+            return _notificationProcessor.ProcessAsync(notification, record, context, cancellationToken);
         }
 
-        if (_notificationHandler is not null)
-        {
-            return _notificationHandler.HandleAsync(notification, context, cancellationToken);
-        }
-
-        throw CreateMissingHandlerException();
+        throw CreateMissingProcessorException();
     }
 
-    protected void EnsureCompatibleHandlerRegistered()
+    protected void EnsureNotificationProcessorRegistered()
     {
-        if (_snsNotificationHandler is null && _notificationHandler is null)
+        if (_notificationProcessor is null)
         {
-            throw CreateMissingHandlerException();
+            throw CreateMissingProcessorException();
         }
     }
 
-    protected static InvalidOperationException CreateMissingHandlerException()
+    protected static InvalidOperationException CreateMissingProcessorException()
     {
         return new InvalidOperationException(
-            $"No compatible SNS notification handler is registered for '{typeof(TNotification).FullName}'. Register {typeof(ISnsNotificationHandler<TNotification>).Name} or {typeof(INotificationHandler<TNotification>).Name}.");
+            $"No SNS notification processor is registered for '{typeof(TNotification).FullName}'. Register {typeof(ISnsNotificationProcessor<TNotification>).Name}.");
     }
 }

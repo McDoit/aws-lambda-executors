@@ -8,14 +8,14 @@ This folder contains minimal, runnable .NET samples for each supported registrat
    Demonstrates `AddEventLambda<TInput, TExecutor>` with `IEventExecutor<TInput>`.
 2. **CoreRequestResponseLambdaSample**  
    Demonstrates `AddRequestResponseLambda<TInput, TOutput, TExecutor>` with `IRequestResponseExecutor<TInput, TOutput>`.
-3. **SqsTypedHandlerSample**  
-   Demonstrates `AddSqsLambda<TMessage, TExecutor>` where `TExecutor` implements `IMessageExecutor<TMessage>`.
+3. **SqsTypedProcessorSample**  
+   Demonstrates `AddSqsLambda<TMessage, TProcessor>` where `TProcessor` implements `ISqsMessageProcessor<TMessage>`.
 4. **SqsRawAwareParallelSample**  
-   Demonstrates `AddSqsLambda<TMessage, TExecutor>` where `TExecutor` implements `ISqsMessageExecutor<TMessage>`, plus `.WithParallelExecution(...)`.
-5. **SnsTypedHandlerSample**  
-   Demonstrates `AddSnsLambda<TNotification, TExecutor>` where `TExecutor` implements `INotificationExecutor<TNotification>`.
+   Demonstrates `AddSqsLambda<TMessage, TProcessor>` where `TProcessor` implements `ISqsMessageProcessor<TMessage>`, plus `.WithParallelExecution(...)`.
+5. **SnsTypedProcessorSample**  
+   Demonstrates `AddSnsLambda<TNotification, TProcessor>` where `TProcessor` implements `ISnsNotificationProcessor<TNotification>`.
 6. **SnsRawAwareParallelSample**  
-   Demonstrates `AddSnsLambdaWithRawExecutor<TNotification, TExecutor>` where `TExecutor` implements `ISnsNotificationExecutor<TNotification>`, plus `.WithParallelExecution(...)`.
+   Demonstrates `AddSnsLambda<TNotification, TProcessor>` where `TProcessor` implements `ISnsNotificationProcessor<TNotification>`, plus `.WithParallelExecution(...)`.
 
 ## Build all samples
 
@@ -25,7 +25,7 @@ From repository root:
 dotnet build .\McDoit.Aws.Lambda.Executors.slnx --framework net8.0
 ```
 
-Each sample uses `Host.CreateApplicationBuilder(args)` and local executor/model classes in `Program.cs`.
+Each sample uses `Host.CreateApplicationBuilder(args)` and local handler/processor model classes in `Program.cs`.
 
 ## Local run and debugging with Aspire
 

@@ -1,6 +1,7 @@
 using Amazon.Lambda.Core;
+using Amazon.Lambda.SNSEvents;
+using McDoit.Aws.Lambda.Executors.Sns;
 using McDoit.Aws.Lambda.Executors.Sns.Extensions;
-using McDoit.Aws.Lambda.Executors.Sns.Handlers;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Samples.ServiceDefaults;
@@ -8,7 +9,7 @@ using Samples.ServiceDefaults;
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.AddServiceDefaults();
-builder.AddSnsLambda<OrderShippedNotification, OrderShippedNotificationHandler>();
+builder.AddSnsLambda<OrderShippedNotification, OrderShippedNotificationProcessor>();
 
 using var host = builder.Build();
 
@@ -18,12 +19,12 @@ if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AWS_LAMBDA_RU
     return;
 }
 
-Console.WriteLine("SNS typed sample configured. Set AWS_LAMBDA_RUNTIME_API to run in Lambda.");
+Console.WriteLine("SNS sample configured. Set AWS_LAMBDA_RUNTIME_API to run in Lambda.");
 
-public sealed class OrderShippedNotificationHandler(ILogger<OrderShippedNotificationHandler> logger)
-    : INotificationHandler<OrderShippedNotification>
+public sealed class OrderShippedNotificationProcessor(ILogger<OrderShippedNotificationProcessor> logger)
+    : ISnsNotificationProcessor<OrderShippedNotification>
 {
-    public Task HandleAsync(OrderShippedNotification? notification, ILambdaContext context, CancellationToken cancellationToken)
+    public Task ProcessAsync(OrderShippedNotification? notification, SNSEvent.SNSRecord record, ILambdaContext context, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         logger.LogInformation(

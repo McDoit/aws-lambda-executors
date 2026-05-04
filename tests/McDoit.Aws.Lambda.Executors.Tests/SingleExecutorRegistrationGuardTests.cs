@@ -1,9 +1,10 @@
 using Amazon.Lambda.Core;
+using Amazon.Lambda.SNSEvents;
+using Amazon.Lambda.SQSEvents;
 using McDoit.Aws.Lambda.Executors.Extensions;
-using McDoit.Aws.Lambda.Executors.Handlers;
-using McDoit.Aws.Lambda.Executors.Sns.Handlers;
+using McDoit.Aws.Lambda.Executors.Sns;
 using McDoit.Aws.Lambda.Executors.Sns.Extensions;
-using McDoit.Aws.Lambda.Executors.Sqs.Handlers;
+using McDoit.Aws.Lambda.Executors.Sqs;
 using McDoit.Aws.Lambda.Executors.Sqs.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,10 +19,10 @@ public sealed class SingleExecutorRegistrationGuardTests
         services.AddEventLambda<GuardCoreInput, GuardCoreEventExecutor>();
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            services.AddRequestResponseLambda<GuardCoreInput, GuardCoreOutput, GuardCoreRequestResponseHandler>());
+            services.AddRequestResponseLambda<GuardCoreInput, GuardCoreOutput, GuardCoreRequestResponseExecutor>());
 
         Assert.Contains("AddEventLambda<TInput, TExecutor>", exception.Message);
-        Assert.Contains("AddRequestResponseLambda<TInput, TOutput, THandler>", exception.Message);
+        Assert.Contains("AddRequestResponseLambda<TInput, TOutput, TExecutor>", exception.Message);
     }
 
     [Fact]
@@ -31,23 +32,23 @@ public sealed class SingleExecutorRegistrationGuardTests
         services.AddEventLambda<GuardCoreInput, GuardCoreEventExecutor>();
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            services.AddSqsLambda<GuardSqsMessage, GuardSqsExecutor>());
+            services.AddSqsLambda<GuardSqsMessage, GuardSqsProcessor>());
 
         Assert.Contains("AddEventLambda<TInput, TExecutor>", exception.Message);
-        Assert.Contains("AddSqsLambda<TMessage, THandler>", exception.Message);
+        Assert.Contains("AddSqsLambda<TMessage, TProcessor>", exception.Message);
     }
 
     [Fact]
     public void AddSnsLambda_Throws_WhenSqsExecutorAlreadyRegistered()
     {
         var services = new ServiceCollection();
-        services.AddSqsLambda<GuardSqsMessage, GuardSqsExecutor>();
+        services.AddSqsLambda<GuardSqsMessage, GuardSqsProcessor>();
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            services.AddSnsLambda<GuardSnsNotification, GuardSnsExecutor>());
+            services.AddSnsLambda<GuardSnsNotification, GuardSnsProcessor>());
 
-        Assert.Contains("AddSqsLambda<TMessage, THandler>", exception.Message);
-        Assert.Contains("AddSnsLambda<TNotification, TNotificationHandler>", exception.Message);
+        Assert.Contains("AddSqsLambda<TMessage, TProcessor>", exception.Message);
+        Assert.Contains("AddSnsLambda<TNotification, TProcessor>", exception.Message);
     }
 
     [Fact]
@@ -89,21 +90,23 @@ public sealed class SingleExecutorRegistrationGuardTests
         public Task ExecuteAsync(GuardCoreInput? input, ILambdaContext context, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class GuardCoreRequestResponseHandler : IRequestResponseHandler<GuardCoreInput, GuardCoreOutput>
+    private sealed class GuardCoreRequestResponseExecutor : IRequestResponseExecutor<GuardCoreInput, GuardCoreOutput>
     {
-        public Task<GuardCoreOutput> HandleAsync(GuardCoreInput? input, ILambdaContext context, CancellationToken cancellationToken)
+        public Task<GuardCoreOutput> ExecuteAsync(GuardCoreInput? input, ILambdaContext context, CancellationToken cancellationToken)
             => Task.FromResult(new GuardCoreOutput(input?.Value ?? string.Empty));
     }
 
-    private sealed class GuardSqsExecutor : IMessageHandler<GuardSqsMessage>
+    private sealed class GuardSqsProcessor : ISqsMessageProcessor<GuardSqsMessage>
     {
-        public Task HandleAsync(GuardSqsMessage message, ILambdaContext context, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ProcessAsync(GuardSqsMessage message, SQSEvent.SQSMessage rawMessage, ILambdaContext context, CancellationToken cancellationToken)
+            => Task.CompletedTask;
     }
 
-    private sealed class GuardSnsExecutor : INotificationHandler<GuardSnsNotification>
+    private sealed class GuardSnsProcessor : ISnsNotificationProcessor<GuardSnsNotification>
     {
-        public Task HandleAsync(GuardSnsNotification? notification, ILambdaContext context, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ProcessAsync(GuardSnsNotification? notification, SNSEvent.SNSRecord record, ILambdaContext context, CancellationToken cancellationToken)
+            => Task.CompletedTask;
     }
 
-    private sealed class InvalidGuardSqsExecutor;
+    private sealed class InvalidGuardSqsProcessor;
 }

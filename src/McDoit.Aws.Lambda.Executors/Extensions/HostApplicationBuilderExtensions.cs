@@ -1,4 +1,3 @@
-using McDoit.Aws.Lambda.Executors.Handlers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -17,14 +16,14 @@ public static class HostApplicationBuilderExtensions
         return builder;
     }
 
-    public static IHostApplicationBuilder AddRequestResponseLambda<TInput, TOutput, THandler>(
+    public static IHostApplicationBuilder AddRequestResponseLambda<TInput, TOutput, TExecutor>(
         this IHostApplicationBuilder builder,
-        ServiceLifetime handlerLifetime = ServiceLifetime.Transient)
-        where THandler : class, IRequestResponseHandler<TInput, TOutput>
+        ServiceLifetime executorLifetime = ServiceLifetime.Transient)
+        where TExecutor : class, IRequestResponseExecutor<TInput, TOutput>
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        builder.Services.AddRequestResponseLambda<TInput, TOutput, THandler>(handlerLifetime);
+        builder.Services.AddRequestResponseLambda<TInput, TOutput, TExecutor>(executorLifetime);
         return builder;
     }
 }
